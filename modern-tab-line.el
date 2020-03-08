@@ -57,6 +57,14 @@
          (set-default symbol value)
          (force-mode-line-update)))
 
+(defcustom modern-tab-line-tab-function #'modern-tab-line-tab
+  "Function that returns the display representation for a tab."
+  :group 'modern-tab-line
+  :type 'function
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (force-mode-line-update)))
+
 (defcustom modern-tab-line-tab-name-function #'buffer-name
   "Function that returns the name for a tab."
   :group 'modern-tab-line
@@ -135,6 +143,11 @@ files.  The order of the buffers is preserved between calls."
       (setq cache (append (seq-intersection cache buffers)
                           (seq-difference buffers cache))))))
 
+(let ((space (propertize " " 'display '(space :width 1))))
+  (defun modern-tab-line-tab (tab-name)
+    "Returns the tab's name padded with spaces."
+    (concat space tab-name space)))
+
 (defun modern-tab-line-tab-help (buffer)
   "Returns the name of the file the buffer is visiting, if any,
 otherwise returns the buffer's name."
@@ -176,6 +189,7 @@ otherwise returns the buffer's name."
 
 ;; modern-tab-line   -> A modern looking tab line.
 ;; buffers-function  -> Function that returns the buffers to display in the tab line.
+;; tab-function      -> Function that returns the display representation for a tab.
 ;; tab-name-function -> Function that returns the name for a tab.
 ;; tab-help-function -> Function that returns the help for a tab.
 ;; tab-keymap        -> Keymap for tabs.
@@ -188,15 +202,16 @@ otherwise returns the buffer's name."
 ;; tab-inactive          -> Face of inactive tabs.
 ;; tab-highlight         -> Face for highlighting tabs.
 ;;
-;; buffers                ->
-;; tab-help               ->
-;; select-tab             ->
-;; close-tab              ->
-;; switch-to-next-tab     ->
-;; switch-to-previous-tab ->
+;; buffers                -> Returns the current buffer and the buffers that are visiting files. The order of the buffers is preserved between calls.
+;; tab                    -> Returns the tab's name padded with spaces.
+;; tab-help               -> Returns the name of the file the buffer is visiting, if any, otherwise returns the buffer's name.
+;; select-tab             -> Switch to the selected tab.
+;; close-tab              -> Close the selected tab.
+;; switch-to-next-tab     -> Switch to the next tab.
+;; switch-to-previous-tab -> Switch to the previous tab.
 
-
-
+;; -----------------------------------------------------------------------------
+;; -----------------------------------------------------------------------------
 
 
 
@@ -210,49 +225,11 @@ otherwise returns the buffer's name."
                      (apply #'concat (make-list height (format "\"%s\"," (make-string width ?.)))))))
     (propertize " " 'display (create-image xpm 'xpm t :ascent 'center))))
 
-(defcustom modern-tab-line-tab-function #'modern-tab-line-tab
-  "TODO"
-  :group 'modern-tab-line
-  :type 'function
-  :set (lambda (symbol value)
-         (set-default symbol value)
-         (force-mode-line-update)))
-
-;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Display-Property.html
-;; Returns the display representation of tab.
-;; TODO: rename to tab-display-function? tab-format-function?
-;; tab-text?
-(let ((space (propertize " " 'display '(space :width 1))))
-  (defun modern-tab-line-tab (tab-name)
-    "Returns the tab's name padded with spaces."
-    (concat space tab-name space)))
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+;; (pop-to-buffer buffer t)
 
 
 
@@ -262,17 +239,25 @@ otherwise returns the buffer's name."
               (seq-contains-p modern-tab-line-excluded-modes major-mode))
     (modern-tab-line-mode 1)))
 
-;; TODO: cache things in the window-parameter
+;; TODO:
+;; if buffers are the same
+;;    window-buffer is the same
+;;    scrolling is the same
+;; then use the case
 (defun modern-tab-line--format ()
   (let ((buffers (funcall modern-tab-line-buffers-function)))
     (modern-tab-line--format-tab-line buffers)))
 
-;; TODO: add window separator if not top left window
 (defun modern-tab-line--format-tab-line (buffers)
-  (let* ((tabs (mapcar #'modern-tab-line--format-tab buffers))
+  (let* ((window (car (window-list)))
+         (tabs (mapcar #'modern-tab-line--format-tab buffers))
          (tab-line (mapcan (lambda (tab)
                              (list tab modern-tab-line-separator))
                            tabs)))
+    ;; (if (and (not (window-at-side-p window 'left))
+    ;;          (not window-divider-mode))
+    ;;     (cons modern-tab-line-separator tab-line)
+    ;;   tab-line)
     tab-line))
 
 (defun modern-tab-line--format-tab (buffer)
@@ -281,7 +266,7 @@ otherwise returns the buffer's name."
                    'modern-tab-line-tab-active
                  'modern-tab-line-tab-inactive)))
     (apply #'propertize
-           (funcall modern-tab-line-tab-name-function buffer)
+           (funcall modern-tab-line-tab-function (funcall modern-tab-line-tab-name-function buffer))
            `(buffer ,buffer
              ,@(when selected-p
                  '(selected-p t))
@@ -297,11 +282,30 @@ otherwise returns the buffer's name."
 
 
 
+;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Window-Sizes.html
+;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Low_002dLevel-Font.html
+;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Size-of-Displayed-Text.html
+(defun modern-tab-line--scroll-tab-line (tabs)
+  (let ((window-size (window-pixel-width))
+        (size (cl-loop for tab in tabs
+                       sum (string-width tab)
+                       until (get-text-property 0 'selected-p tab))))
+    (if (> size window-size)
+        (progn
+          (- size window-size))
+      0)))
+
+;; font has variable width so the sizes are not matching, try using pixels
 
 
 
 
-;; (pop-to-buffer buffer t)
+
+
+
+
+
+
 
 
 

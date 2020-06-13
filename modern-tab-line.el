@@ -221,29 +221,17 @@ otherwise returns the name of the buffer."
 (defun modern-tab-line--get-buffer (string)
   (get-text-property 0 'buffer string))
 
-(defun modern-tab-line--cached-active-buffer ()
-  (window-parameter nil 'modern-tab-line--active-buffer))
+(defun modern-tab-line--get-cache ()
+  (window-parameter nil 'modern-tab-line--cache))
 
-(defun modern-tab-line--cache-active-buffer (active-buffer)
-  (set-window-parameter nil 'modern-tab-line--active-buffer active-buffer))
+(defun modern-tab-line--set-cache (cache)
+  (set-window-parameter nil 'modern-tab-line--cache cache))
 
-(defun modern-tab-line--cached-buffers ()
-  (window-parameter nil 'modern-tab-line--buffers))
-
-(defun modern-tab-line--cache-buffers (buffers)
-  (set-window-parameter nil 'modern-tab-line--buffers buffers))
-
-(defun modern-tab-line--cached-scroll ()
+(defun modern-tab-line--get-scroll ()
   (window-parameter nil 'modern-tab-line--scroll))
 
-(defun modern-tab-line--cache-scroll (scroll)
+(defun modern-tab-line--set-scroll (scroll)
   (set-window-parameter nil 'modern-tab-line--scroll scroll))
-
-(defun modern-tab-line--cached-tab-line ()
-  (window-parameter nil 'modern-tab-line--tab-line))
-
-(defun modern-tab-line--cache-tab-line (tab-line)
-  (set-window-parameter nil 'modern-tab-line--tab-line tab-line))
 
 (defun modern-tab-line--turn-on ()
   (unless (or (minibufferp)
@@ -363,17 +351,18 @@ otherwise returns the name of the buffer."
 
 
 (defun modern-tab-line--format ()
-  (let ((active-buffer (current-buffer))
-        (buffers (funcall modern-tab-line-buffers-function)))
-    (if (and (eq active-buffer (modern-tab-line--cached-active-buffer))
-             (equal buffers (modern-tab-line--cached-buffers)))
-        (modern-tab-line--cached-tab-line)
-      (let ((tab-line (modern-tab-line--format-tab-line buffers)))
-        (modern-tab-line--cache-active-buffer active-buffer)
-        (modern-tab-line--cache-buffers buffers)
-        (modern-tab-line--cache-tab-line tab-line)
-        tab-line))))
+  (cl-destructuring-bind (&optional cached-active-buffer cached-buffers cached-tab-line)
+      (modern-tab-line--get-cache)
+    (let ((active-buffer (current-buffer))
+          (buffers (funcall modern-tab-line-buffers-function)))
+      (if (and (eq active-buffer cached-active-buffer)
+               (equal buffers cached-buffers))
+          cached-tab-line
+        (let ((tab-line (modern-tab-line--format-tab-line buffers)))
+          (modern-tab-line--set-cache (list active-buffer buffers tab-line))
+          tab-line)))))
 
+;; (apply #'concat tab-line)
 (defun modern-tab-line--format-tab-line (buffers)
   (let ((tab-line (mapcan (lambda (buffer)
                             (list (modern-tab-line--format-tab buffer)
@@ -385,7 +374,7 @@ otherwise returns the name of the buffer."
       tab-line)))
 
 ;; https://lists.gnu.org/archive/html/emacs-devel/2018-12/msg00430.html
-(add-hook 'window-buffer-change-functions (lambda (_) (modern-tab-line--cache-active-buffer nil)))
+(add-hook 'window-buffer-change-functions (lambda (_) (modern-tab-line--set-cache nil)))
 
 (defun modern-tab-line--format-tab (buffer)
   (let ((active-p (eq buffer (current-buffer))))
@@ -403,9 +392,10 @@ otherwise returns the name of the buffer."
 
 (defun modern-tab-line-scroll-right (scroll)
   (interactive "n")
-  (modern-tab-line--cache-active-buffer nil)
+  (modern-tab-line--set-scroll (+ (or (modern-tab-line--get-scroll)
+                                      0)
+                                  scroll))
   (force-mode-line-update))
-
 
 
 

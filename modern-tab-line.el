@@ -49,6 +49,21 @@
 ;; -----------------------------------------------------------------------------
 ;; -----------------------------------------------------------------------------
 
+(defun modern-tab-line--make-xpm (height width &optional color)
+  (let ((xpm (format "/* XPM */ static char * xpm[] = { \"%s %s 1 1\", \". c %s\", %s };"
+                     width
+                     height
+                     (or color "none")
+                     (apply #'concat (make-list height (format "\"%s\"," (make-string width ?.)))))))
+    (propertize " " 'display (create-image xpm 'xpm t :ascent 'center))))
+
+(defun modern-tab-line--set-and-redisplay (symbol value)
+  (set-default symbol value)
+  (force-mode-line-update))
+
+;; -----------------------------------------------------------------------------
+;; -----------------------------------------------------------------------------
+
 (defgroup modern-tab-line nil
   "A modern looking tab line."
   :group 'convenience
@@ -58,33 +73,25 @@
   "Function that returns the buffers to show in the tab line."
   :group 'modern-tab-line
   :type 'function
-  :set (lambda (symbol value)
-         (set-default symbol value)
-         (force-mode-line-update)))
+  :set #'modern-tab-line--set-and-redisplay)
 
 (defcustom modern-tab-line-tab-function #'modern-tab-line-tab
   "Function that returns the display representation for a tab."
   :group 'modern-tab-line
   :type 'function
-  :set (lambda (symbol value)
-         (set-default symbol value)
-         (force-mode-line-update)))
+  :set #'modern-tab-line--set-and-redisplay)
 
 (defcustom modern-tab-line-tab-name-function #'buffer-name
   "Function that returns the name for a tab."
   :group 'modern-tab-line
   :type 'function
-  :set (lambda (symbol value)
-         (set-default symbol value)
-         (force-mode-line-update)))
+  :set #'modern-tab-line--set-and-redisplay)
 
 (defcustom modern-tab-line-tab-help-function #'modern-tab-line-tab-help
   "Function that returns the help for a tab."
   :group 'modern-tab-line
   :type 'function
-  :set (lambda (symbol value)
-         (set-default symbol value)
-         (force-mode-line-update)))
+  :set #'modern-tab-line--set-and-redisplay)
 
 (defvar modern-tab-line-tab-keymap
   (let ((keymap (make-sparse-keymap)))
@@ -92,13 +99,11 @@
     keymap)
   "Keymap for tabs.")
 
-(defcustom modern-tab-line-separator (modern-tab-line-make-xpm 30 1 "grey55")
+(defcustom modern-tab-line-separator (modern-tab-line--make-xpm 30 1 "grey55")
   "Separator used between tabs."
   :group 'modern-tab-line
   :type 'string
-  :set (lambda (symbol value)
-         (set-default symbol value)
-         (force-mode-line-update)))
+  :set #'modern-tab-line--set-and-redisplay)
 
 (defcustom modern-tab-line-excluded-modes nil
   "Major modes ignored by `global-modern-tab-line-mode'."
@@ -116,8 +121,8 @@
 
 (defface modern-tab-line-tab-line '((t :inherit variable-pitch
                                        :height 0.9
-                                       :foreground "black"
-                                       :background "grey85"))
+                                       :background "grey85"
+                                       :foreground "black"))
   "Face of the tab line."
   :group 'modern-tab-line-faces)
 
@@ -165,7 +170,7 @@ otherwise returns the name of the buffer."
   (interactive "e")
   (let* ((posn (event-start event))
          (window (posn-window posn))
-         (buffer (modern-tab-line--get-buffer (car (posn-string posn)))))
+         (buffer (modern-tab-line--get-buffer (posn-string posn))))
     (select-window window)
     (switch-to-buffer buffer)))
 
@@ -173,7 +178,7 @@ otherwise returns the name of the buffer."
   "Close the selected tab."
   (interactive "e")
   (let* ((posn (event-start event))
-         (buffer (modern-tab-line--get-buffer (car (posn-string posn)))))
+         (buffer (modern-tab-line--get-buffer (posn-string posn))))
     (kill-buffer buffer)))
 
 (defun modern-tab-line-switch-to-next-tab ()
@@ -218,14 +223,13 @@ otherwise returns the name of the buffer."
 ;; -----------------------------------------------------------------------------
 ;; -----------------------------------------------------------------------------
 
-(defun modern-tab-line--get-buffer (string)
-  (get-text-property 0 'buffer string))
-
-(defun modern-tab-line--get-cache ()
-  (window-parameter nil 'modern-tab-line--cache))
-
-(defun modern-tab-line--set-cache (cache)
-  (set-window-parameter nil 'modern-tab-line--cache cache))
+(defun modern-tab-line--get-buffer (string &optional position)
+  (let ((string (if (stringp string)
+                    string
+                  (car string)))
+        (position (or position
+                      (cdr string))))
+    (get-text-property position 'buffer string)))
 
 (defun modern-tab-line--get-scroll ()
   (window-parameter nil 'modern-tab-line--scroll))
@@ -233,10 +237,6 @@ otherwise returns the name of the buffer."
 (defun modern-tab-line--set-scroll (scroll)
   (set-window-parameter nil 'modern-tab-line--scroll scroll))
 
-(defun modern-tab-line--turn-on ()
-  (unless (or (minibufferp)
-              (seq-contains-p modern-tab-line-excluded-modes major-mode))
-    (modern-tab-line-mode 1)))
 
 
 
@@ -247,32 +247,6 @@ otherwise returns the name of the buffer."
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-(defun modern-tab-line-make-xpm (height width &optional color)
-  "TODO"
-  (let ((xpm (format "/* XPM */ static char * xpm[] = { \"%s %s 1 1\", \". c %s\", %s };"
-                     width
-                     height
-                     (or color "none")
-                     (apply #'concat (make-list height (format "\"%s\"," (make-string width ?.)))))))
-    (propertize " " 'display (create-image xpm 'xpm t :ascent 'center))))
 
 
 
@@ -282,43 +256,73 @@ otherwise returns the name of the buffer."
 
 ;; (pop-to-buffer buffer t)
 
-
 ;; (global-set-key [tab-line wheel-up] 'modern-tab-line-scroll-left)
 ;; (global-set-key [tab-line wheel-down] 'modern-tab-line-scroll-right)
 
-
 ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Window-Sizes.html
 
-;; the temporary buffer has fringes
+;; the temporary buffer has fringes -> (set-window-fringes (selected-window) 0 0)
+;; not an issue? this will be done in the background -> no window no fringes!
+
+;; TODO: Handle tab length > visible tab-line length.
 (let ((buffer (generate-new-buffer " *modern-tab-line-scroll*")))
-  (defun modern-tab-line--scroll-tab-line (tab-line)
-    (with-current-buffer buffer
-      (let ((inhibit-modification-hooks t)
-            (truncate-partial-width-windows nil))
-        (setq truncate-lines nil
-              word-wrap nil)
-        (erase-buffer)
-        (apply #'insert tab-line)
-        (goto-char (point-min))
-        (vertical-motion 1)
-        ))))
+  (defun modern-tab-line--scroll-tab-line (tab-line scroll)
+    (cl-macrolet ((with-buffer (buffer &body body))
+                    `(with-current-buffer ,buffer
+                       (let ((inhibit-modification-hooks t)
+                             (truncate-partial-width-windows nil))
+                         (setq truncate-lines nil
+                               word-wrap nil)
+                         ,@body)))
+      (cl-flet ((visible-length (string)
+                  (erase-buffer)
+                  (insert string)
+                  (goto-char (point-min))
+                  (when (> (vertical-motion 1) 0)
+                    (1- (point)))))
+        (with-buffer buffer
+          (let* ((visible (visible-length (substring tab-line scroll)))
+                 (tab-start (text-property-any 0 (length tab-line) 'active-p t tab-line))
+                 (tab-end (text-property-any tab-start (length tab-line) 'active-p nil tab-line)))
+            ;; Add separator.
+            (unless (zerop tab-start)
+              (cl-decf tab-start (length modern-tab-line-separator)))
+            (cl-incf tab-end (length modern-tab-line-separator))
+            ;; Scroll right?
+            (when (and (> tab-start scroll)
+                       (> tab-end visible))
+              ;; string-reverse deletes properties!
+              (visible-length (string-reverse (substring tab-line 0 end)))
+
+              )
+            ;; Scroll left?
+            (when (< tab-start scroll)
+              ;; set scroll = start
+              ;; substring tab-line start
+              )
+
+            scroll))))))
 
 
 
-
-
-
-;; (defun modern-tab-line--track-closed-buffer ()
-;;   (let ((buffer (if (eq (car ft-buffers)
-;;                         (current-buffer))
-;;                     (cadr ft-buffers)
-;;                   (cl-loop for (previous current next) on ft-buffers
-;;                            when (eq current (current-buffer))
-;;                            return (or next previous)))))
-;;     (when buffer
-;;       (switch-to-buffer buffer))))
+;; .  a  .  b  .  c  .  d  .
 ;;
-;; (add-hook 'kill-buffer-hook #'modern-tab-line--track-closed-buffer)
+;; | window      |
+;; +-----+-----+-----+-----+
+;; |  a  |  b  |  c  |  d  |
+;; +-----+-----+-----+-----+
+;;
+
+
+
+(global-set-key (kbd "M-<down>") #'modern-tab-line-switch-to-next-tab) ; move file tab ->
+(global-set-key (kbd "M-<up>") #'modern-tab-line-switch-to-previous-tab) ; move file tab <-
+
+(defun modern-tab-line-scroll-right (scroll)
+  (interactive "n")
+  (modern-tab-line--set-scroll (+ (or (modern-tab-line--get-scroll) 0)
+                                  scroll))
+  (force-mode-line-update))
 
 
 
@@ -349,53 +353,46 @@ otherwise returns the name of the buffer."
 
 
 
+
+
+
+(defun modern-tab-line--turn-on ()
+  (unless (or (minibufferp)
+              (seq-contains-p modern-tab-line-excluded-modes major-mode))
+    (modern-tab-line-mode 1)))
 
 (defun modern-tab-line--format ()
-  (cl-destructuring-bind (&optional cached-active-buffer cached-buffers cached-tab-line)
-      (modern-tab-line--get-cache)
-    (let ((active-buffer (current-buffer))
-          (buffers (funcall modern-tab-line-buffers-function)))
-      (if (and (eq active-buffer cached-active-buffer)
-               (equal buffers cached-buffers))
-          cached-tab-line
-        (let ((tab-line (modern-tab-line--format-tab-line buffers)))
-          (modern-tab-line--set-cache (list active-buffer buffers tab-line))
-          tab-line)))))
+  (let ((buffers (funcall modern-tab-line-buffers-function)))
+    (modern-tab-line--format-tab-line buffers)))
 
-;; (apply #'concat tab-line)
+;; TODO Separator should be shown always, not just on tab line start?
+;; do not include them in the tab line and add them later?
 (defun modern-tab-line--format-tab-line (buffers)
-  (let ((tab-line (mapcan (lambda (buffer)
-                            (list (modern-tab-line--format-tab buffer)
-                                  modern-tab-line-separator))
-                          buffers)))
-    (if (and (not (window-at-side-p nil 'left))
-             (not window-divider-mode))
-        (cons modern-tab-line-separator tab-line)
-      tab-line)))
-
-;; https://lists.gnu.org/archive/html/emacs-devel/2018-12/msg00430.html
-(add-hook 'window-buffer-change-functions (lambda (_) (modern-tab-line--set-cache nil)))
+  (let ((tab-line (mapconcat #'modern-tab-line--format-tab
+                             buffers
+                             modern-tab-line-separator)))
+    ;; Add a separator at the begining of the tab line unless we're
+    ;; the leftmost window or window-divider-mode is enabled.
+    (unless (or (window-at-side-p nil 'left)
+                window-divider-mode)
+      (setq tab-line (concat modern-tab-line-separator tab-line)))
+    ;; Add a separator at the end of the tab line.
+    (concat tab-line modern-tab-line-separator)))
 
 (defun modern-tab-line--format-tab (buffer)
   (let ((active-p (eq buffer (current-buffer))))
     (propertize (funcall modern-tab-line-tab-function (funcall modern-tab-line-tab-name-function buffer))
                 'buffer buffer
+                'active-p active-p
                 'face (if active-p
                           'modern-tab-line-tab-active
                         'modern-tab-line-tab-inactive)
                 'mouse-face 'modern-tab-line-tab-highlight
                 'pointer 'arrow
                 'help-echo (lambda (window object position)
-                             (let ((buffer (modern-tab-line--get-buffer object)))
+                             (let ((buffer (modern-tab-line--get-buffer object position)))
                                (funcall modern-tab-line-tab-help-function buffer)))
                 'local-map modern-tab-line-tab-keymap)))
-
-(defun modern-tab-line-scroll-right (scroll)
-  (interactive "n")
-  (modern-tab-line--set-scroll (+ (or (modern-tab-line--get-scroll)
-                                      0)
-                                  scroll))
-  (force-mode-line-update))
 
 
 

@@ -1,5 +1,5 @@
 # Changelog
 
-## 1.0 (2020-xx-xx)
+## 1.0 (2021-xx-xx)
 
 - Initial release.

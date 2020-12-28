@@ -223,20 +223,16 @@ otherwise returns the name of the buffer."
 ;; -----------------------------------------------------------------------------
 ;; -----------------------------------------------------------------------------
 
-(defun modern-tab-line--get-buffer (string &optional position)
-  (let ((string (if (stringp string)
-                    string
-                  (car string)))
-        (position (or position
-                      (cdr string))))
+(defun modern-tab-line--get-buffer (posn-string)
+  (let ((string (car posn-string))
+        (position (cdr posn-string)))
     (get-text-property position 'buffer string)))
 
-(defun modern-tab-line--get-scroll ()
-  (window-parameter nil 'modern-tab-line--scroll))
-
-(defun modern-tab-line--set-scroll (scroll)
-  (set-window-parameter nil 'modern-tab-line--scroll scroll))
-
+;; (defun modern-tab-line--get-scroll ()
+;;   (window-parameter nil 'modern-tab-line--scroll))
+;;
+;; (defun modern-tab-line--set-scroll (scroll)
+;;   (set-window-parameter nil 'modern-tab-line--scroll scroll))
 
 
 
@@ -264,54 +260,45 @@ otherwise returns the name of the buffer."
 ;; the temporary buffer has fringes -> (set-window-fringes (selected-window) 0 0)
 ;; not an issue? this will be done in the background -> no window no fringes!
 
-;; TODO: Handle tab length > visible tab-line length.
+;; TODO what to do when the tab is larger than the tab-line?
 (let ((buffer (generate-new-buffer " *modern-tab-line-scroll*")))
   (defun modern-tab-line--scroll-tab-line (tab-line scroll)
-    (cl-macrolet ((with-buffer (buffer &body body))
-                    `(with-current-buffer ,buffer
-                       (let ((inhibit-modification-hooks t)
-                             (truncate-partial-width-windows nil))
-                         (setq truncate-lines nil
-                               word-wrap nil)
-                         ,@body)))
-      (cl-flet ((visible-length (string)
-                  (erase-buffer)
-                  (insert string)
-                  (goto-char (point-min))
-                  (when (> (vertical-motion 1) 0)
-                    (1- (point)))))
-        (with-buffer buffer
+    (cl-flet ((visible-length (string)
+                (erase-buffer)
+                (insert string)
+                (goto-char (point-min))
+                (when (> (vertical-motion 1) 0)
+                  (1- (point)))))
+      (with-current-buffer buffer
+        (let ((inhibit-modification-hooks t)
+              (truncate-partial-width-windows nil))
+          (setq truncate-lines nil
+                word-wrap nil)
+          ;; TODO visible may be null
           (let* ((visible (visible-length (substring tab-line scroll)))
                  (tab-start (text-property-any 0 (length tab-line) 'active-p t tab-line))
                  (tab-end (text-property-any tab-start (length tab-line) 'active-p nil tab-line)))
-            ;; Add separator.
+            ;; Add separators.
             (unless (zerop tab-start)
               (cl-decf tab-start (length modern-tab-line-separator)))
             (cl-incf tab-end (length modern-tab-line-separator))
-            ;; Scroll right?
-            (when (and (> tab-start scroll)
-                       (> tab-end visible))
-              ;; string-reverse deletes properties!
-              (visible-length (string-reverse (substring tab-line 0 end)))
+            (cond ;; Scroll right?
+                  ((and (> tab-start scroll)
+                        (> tab-end (+ scroll visible)))
 
-              )
-            ;; Scroll left?
-            (when (< tab-start scroll)
-              ;; set scroll = start
-              ;; substring tab-line start
-              )
+                        ;; get string tab-end .. 0
+                   (let ;; ((visible (visible-length (string-reverse (substring tab-line 0 tab-end)))))
+                        ((visible (visible-length (substring (modern-tab-line--format-tab-line (reverse (funcall modern-tab-line-buffers-function))) (- (length tab-line) tab-end)))))
 
-            scroll))))))
+                     (- tab-end visible)))
+                  ;; Scroll left?
+                  ((< tab-start scroll)
+                   tab-start)
+                  ;; Don't scroll.
+                  (t
+                   nil))))))))
 
 
-
-;; .  a  .  b  .  c  .  d  .
-;;
-;; | window      |
-;; +-----+-----+-----+-----+
-;; |  a  |  b  |  c  |  d  |
-;; +-----+-----+-----+-----+
-;;
 
 
 
@@ -362,11 +349,13 @@ otherwise returns the name of the buffer."
     (modern-tab-line-mode 1)))
 
 (defun modern-tab-line--format ()
-  (let ((buffers (funcall modern-tab-line-buffers-function)))
-    (modern-tab-line--format-tab-line buffers)))
+  (let* ((buffers (funcall modern-tab-line-buffers-function))
+         (tab-line (modern-tab-line--format-tab-line buffers)))
+    tab-line))
 
 ;; TODO Separator should be shown always, not just on tab line start?
 ;; do not include them in the tab line and add them later?
+;; TODO calculate tab-start and tab-end here?
 (defun modern-tab-line--format-tab-line (buffers)
   (let ((tab-line (mapconcat #'modern-tab-line--format-tab
                              buffers
@@ -390,7 +379,7 @@ otherwise returns the name of the buffer."
                 'mouse-face 'modern-tab-line-tab-highlight
                 'pointer 'arrow
                 'help-echo (lambda (window object position)
-                             (let ((buffer (modern-tab-line--get-buffer object position)))
+                             (let ((buffer (modern-tab-line--get-buffer (cons object position))))
                                (funcall modern-tab-line-tab-help-function buffer)))
                 'local-map modern-tab-line-tab-keymap)))
 
